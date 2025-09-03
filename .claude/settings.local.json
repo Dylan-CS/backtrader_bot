@@ -10,7 +10,11 @@
       "Bash(git add:*)",
       "Bash(git commit:*)",
       "Bash(git branch:*)",
-      "Bash(git push:*)"
+      "Bash(git push:*)",
+      "Bash(pip show:*)",
+      "Read(/usr/local/python/3.12.1/lib/python3.12/site-packages/backtrader/**)",
+      "Bash(pip uninstall:*)",
+      "Read(/usr/local/python/3.12.1/lib/python3.12/site-packages/backtrader/**)"
     ],
     "deny": [],
     "ask": []
