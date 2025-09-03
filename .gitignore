@@ -41,7 +41,7 @@ ENV/
 
 # Data files
 *.csv
-*.json
+# *.json
 *.h5
 *.hdf5
 
