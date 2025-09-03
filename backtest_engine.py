@@ -19,7 +19,19 @@ def run_backtest(strategy_name, symbol, **kwargs):
     cerebro.adddata(data_feed)
     
     strategy_module = importlib.import_module(f'src.strategies.{strategy_name}')
-    strategy_class = getattr(strategy_module, 'SMACrossover')
+    
+    # Find the strategy class (look for classes that inherit from bt.Strategy)
+    strategy_class = None
+    for attr_name in dir(strategy_module):
+        attr = getattr(strategy_module, attr_name)
+        if (isinstance(attr, type) and 
+            issubclass(attr, bt.Strategy) and 
+            attr != bt.Strategy):
+            strategy_class = attr
+            break
+    
+    if strategy_class is None:
+        raise ValueError(f"No strategy class found in {strategy_name}")
     
     strategy_params = BACKTEST_CONFIG['strategies'].get(strategy_name, {})
     cerebro.addstrategy(strategy_class, **strategy_params)
