@@ -37,9 +37,15 @@ class QQQMMomentum(bt.Strategy):
             self.data.close, period=self.params.ma_slow
         )
         
-        # ATR用于动态止损
+        # ATR用于动态止损（添加最小价格保护）
         self.atr = bt.indicators.AverageTrueRange(
             self.data, period=self.params.atr_period
+        )
+        
+        # ATR值保护，避免除零或极小值
+        self.atr_safe = bt.indicators.Max(
+            self.atr, 
+            self.data.close * 0.001  # 至少是价格的0.1%
         )
         
         # 跟踪变量
@@ -66,8 +72,9 @@ class QQQMMomentum(bt.Strategy):
                         f'成本={order.executed.value:.2f}, '
                         f'佣金={order.executed.comm:.2f}')
                 self.entry_price = order.executed.price
-                # 设置止损价：入场价 - 2 * ATR
-                self.stop_price = self.entry_price - (self.atr[0] * self.params.atr_multiplier)
+                # 设置止损价：入场价 - 2 * ATR（使用安全ATR）
+                atr_value = max(self.atr_safe[0], self.entry_price * 0.01)  # 至少1%
+                self.stop_price = self.entry_price - (atr_value * self.params.atr_multiplier)
             elif order.issell():
                 self.log(f'卖出执行: 价格={order.executed.price:.2f}, '
                         f'成本={order.executed.value:.2f}, '

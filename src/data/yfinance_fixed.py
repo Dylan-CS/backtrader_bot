@@ -113,6 +113,7 @@ def create_mock_data(
 ) -> pd.DataFrame:
     """
     创建模拟数据（仅用于测试）
+    添加明显的趋势和波动以测试策略信号
     """
     import numpy as np
     
@@ -132,46 +133,74 @@ def create_mock_data(
     
     np.random.seed(42)  # 可重复的随机数
     
-    # 模拟价格序列（几何布朗运动）
+    # 模拟价格序列 - 添加明显的上升趋势和周期性波动
     base_price = 150.0 if 'QQQ' in symbol.upper() else 100.0
-    daily_return = 0.0005  # 日均收益率
-    daily_volatility = 0.015  # 日波动率
     
-    # 生成收益率
-    returns = np.random.normal(daily_return, daily_volatility, n_days)
+    # 创建趋势成分（明显的上升趋势）
+    time_index = np.arange(n_days)
+    trend = 0.0008 * time_index  # 明显的上升趋势
+    
+    # 创建季节性/周期性成分（模拟市场周期）
+    seasonal = 0.05 * np.sin(2 * np.pi * time_index / 63)  # 约3个月的周期
+    
+    # 创建波动成分
+    volatility = 0.02  # 更高的波动率以产生交易信号
+    
+    # 生成收益率：趋势 + 季节性 + 随机波动
+    returns = trend + seasonal + np.random.normal(0, volatility, n_days)
+    
+    # 添加一些明显的价格跳跃（模拟重大新闻事件）
+    jump_days = n_days // 10  # 10%的天数有价格跳跃
+    jump_indices = np.random.choice(n_days, jump_days, replace=False)
+    returns[jump_indices] += np.random.choice([-0.03, -0.02, 0.02, 0.03], jump_days)
     
     # 计算价格
     prices = base_price * np.exp(np.cumsum(returns))
     
-    # 添加趋势（如果是QQQM，添加上涨趋势）
-    if 'QQQ' in symbol.upper():
-        trend = np.linspace(0, 0.3, n_days)  # 30%的上涨趋势
-        prices = prices * (1 + trend)
+    # 确保价格合理
+    prices = np.maximum(prices, base_price * 0.5)  # 不低于50%
+    prices = np.minimum(prices, base_price * 3.0)  # 不高于300%
     
-    # 创建OHLC数据
+    # 创建OHLC数据 - 添加更真实的价差
     data = pd.DataFrame(index=dates)
     
     # 收盘价
     data['Close'] = prices
     
-    # 开盘价（收盘价加一点随机）
-    data['Open'] = prices * (1 + np.random.normal(0, 0.001, n_days))
+    # 开盘价（基于前一日收盘价）
+    data['Open'] = np.zeros(n_days)
+    data['Open'][0] = prices[0] * (1 + np.random.normal(0, 0.002))
+    for i in range(1, n_days):
+        data['Open'][i] = data['Close'][i-1] * (1 + np.random.normal(0, 0.002))
     
-    # 最高价（高于收盘价）
-    data['High'] = prices * (1 + np.abs(np.random.normal(0.005, 0.002, n_days)))
+    # 最高价（高于开盘和收盘）
+    daily_range = prices * 0.01  # 1%的日波动范围
+    data['High'] = np.maximum(data['Open'], data['Close']) + np.abs(np.random.normal(0, daily_range/2, n_days))
     
-    # 最低价（低于收盘价）
-    data['Low'] = prices * (1 - np.abs(np.random.normal(0.005, 0.002, n_days)))
+    # 最低价（低于开盘和收盘）
+    data['Low'] = np.minimum(data['Open'], data['Close']) - np.abs(np.random.normal(0, daily_range/2, n_days))
+    
+    # 确保High > Low
+    for i in range(n_days):
+        if data['High'][i] <= data['Low'][i]:
+            data['High'][i] = data['Low'][i] + 0.01
     
     # 调整收盘价（与收盘价相似）
-    data['Adj Close'] = prices * (1 + np.random.normal(0, 0.0001, n_days))
+    data['Adj Close'] = data['Close'] * (1 + np.random.normal(0, 0.0001, n_days))
     
-    # 成交量（随机）
-    data['Volume'] = np.random.randint(1000000, 5000000, n_days)
+    # 成交量（与价格波动相关）
+    base_volume = 2000000
+    volume_multiplier = 1 + np.abs(returns) * 100  # 波动越大，成交量越大
+    data['Volume'] = (base_volume * volume_multiplier * np.random.uniform(0.8, 1.2, n_days)).astype(int)
     
-    # 确保High >= Low, High >= Open, High >= Close等
-    data['High'] = data[['Open', 'High', 'Close']].max(axis=1)
-    data['Low'] = data[['Open', 'Low', 'Close']].min(axis=1)
+    # 添加成交量异常（模拟重要交易日）
+    high_volume_days = np.random.choice(n_days, n_days//20, replace=False)
+    data.loc[dates[high_volume_days], 'Volume'] *= np.random.uniform(2, 5, len(high_volume_days))
+    
+    print(f"模拟数据创建完成: {symbol}")
+    print(f"价格范围: ${data['Close'].min():.2f} - ${data['Close'].max():.2f}")
+    print(f"总回报: {(data['Close'].iloc[-1] / data['Close'].iloc[0] - 1) * 100:.1f}%")
+    print(f"日均波动: {data['Close'].pct_change().std() * 100:.2f}%")
     
     return data
 
