@@ -14,7 +14,7 @@ import os
 sys.path.append(os.path.dirname(os.path.abspath(__file__)))
 
 from config.backtest_config import BACKTEST_CONFIG
-from src.data.simple_data_feed import get_yahoo_data_safe, CSVDataFeed, get_sample_data
+from src.data.simple_data_feed import get_yahoo_data, YahooFinanceData, test_data_source
 from src.strategies.qqqm_momentum import QQQMMomentum, QQQMMomentumEnhanced
 
 def test_qqqm_strategy(strategy_class, symbol='QQQM', plot=False):
@@ -33,24 +33,31 @@ def test_qqqm_strategy(strategy_class, symbol='QQQM', plot=False):
     cerebro.broker.setcommission(commission=BACKTEST_CONFIG['commission'])
     
     # 获取数据
-    print(f"获取 {symbol} 数据...")
+    print(f"获取 {symbol} 数据从yfinance...")
     try:
-        # 尝试获取真实数据，失败则使用示例数据
-        data_df = get_yahoo_data_safe(
+        # 使用yfinance获取真实数据
+        data_df = get_yahoo_data(
             symbol, 
             BACKTEST_CONFIG['fromdate'], 
-            BACKTEST_CONFIG['todate']
+            BACKTEST_CONFIG['todate'],
+            progress=False
         )
         
         if data_df.empty:
-            print(f"使用示例数据")
-            data_df = get_sample_data(symbol, BACKTEST_CONFIG['fromdate'], BACKTEST_CONFIG['todate'])
+            print(f"错误: 获取的数据为空")
+            return None
             
-        data_feed = CSVDataFeed(dataname=data_df)
+        print(f"数据获取成功: {len(data_df)} 个交易日")
+        print(f"价格范围: ${data_df['Close'].min():.2f} - ${data_df['Close'].max():.2f}")
+        
+        data_feed = YahooFinanceData(dataname=data_df)
         cerebro.adddata(data_feed)
         
     except Exception as e:
         print(f"数据获取错误: {e}")
+        print("尝试备用数据源...")
+        import traceback
+        traceback.print_exc()
         return None
     
     # 添加策略
